@@ -1,13 +1,3 @@
-# Acai Technical Challenge
-
-This technical challenge is part of the interview process for a Software Engineer position at [Acai Travel](https://acaitravel.com). 
-If you weren't sent here by one of our engineers, you can [get started here](https://www.acaitravel.com/about/careers).
-
-We know you're eager to get to the code, but please read the instructions carefully before you begin.
-
-The challenge might seem tricky at first, but once you get into it, we hope you'll enjoy the process and have fun 
-working with AI and Go.
-
 ## Introduction
 
 In this challenge, you'll work on an existing application from this repository, written in [Go](https://go.dev). You can 
