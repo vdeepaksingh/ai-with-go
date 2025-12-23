@@ -10,6 +10,8 @@ import (
 	"github.com/acai-travel/tech-challenge/internal/pb"
 	"github.com/twitchtv/twirp"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 var _ pb.ChatService = (*Server)(nil)
@@ -29,6 +31,14 @@ func NewServer(repo *model.Repository, assist Assistant) *Server {
 }
 
 func (s *Server) StartConversation(ctx context.Context, req *pb.StartConversationRequest) (*pb.StartConversationResponse, error) {
+	tracer := otel.Tracer("chat-service")
+	ctx, span := tracer.Start(ctx, "StartConversation")
+	defer span.End()
+
+	span.SetAttributes(
+		attribute.Int("message.length", len(req.GetMessage())),
+	)
+
 	conversation := &model.Conversation{
 		ID:        primitive.NewObjectID(),
 		Title:     "Untitled conversation",
@@ -86,6 +96,7 @@ func (s *Server) StartConversation(ctx context.Context, req *pb.StartConversatio
 	select {
 	case reply = <-replyChan:
 	case err := <-errorChan:
+		span.RecordError(err)
 		return nil, err
 	}
 
@@ -103,8 +114,14 @@ func (s *Server) StartConversation(ctx context.Context, req *pb.StartConversatio
 	})
 
 	if err := s.repo.UpdateConversation(ctx, conversation); err != nil {
+		span.RecordError(err)
 		return nil, err
 	}
+
+	span.SetAttributes(
+		attribute.String("conversation.id", conversation.ID.Hex()),
+		attribute.String("conversation.title", conversation.Title),
+	)
 
 	return &pb.StartConversationResponse{
 		ConversationId: conversation.ID.Hex(),
