@@ -47,20 +47,53 @@ func (s *Server) StartConversation(ctx context.Context, req *pb.StartConversatio
 		return nil, twirp.RequiredArgumentError("message")
 	}
 
-	// choose a title
-	title, err := s.assist.Title(ctx, conversation)
-	if err != nil {
-		slog.ErrorContext(ctx, "Failed to generate conversation title", "error", err)
-	} else {
-		conversation.Title = title
-	}
-
-	// generate a reply
-	reply, err := s.assist.Reply(ctx, conversation)
-	if err != nil {
+	// Save conversation early with placeholder title
+	if err := s.repo.CreateConversation(ctx, conversation); err != nil {
 		return nil, err
 	}
 
+	// Run title and reply generation in parallel with timeouts
+	titleChan := make(chan string, 1)
+	replyChan := make(chan string, 1)
+	errorChan := make(chan error, 2)
+
+	// Generate title concurrently with timeout
+	go func() {
+		titleCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		defer cancel()
+		title, err := s.assist.Title(titleCtx, conversation)
+		if err != nil {
+			slog.ErrorContext(ctx, "Failed to generate conversation title", "error", err)
+			title = "Untitled conversation"
+		}
+		titleChan <- title
+	}()
+
+	// Generate reply concurrently with timeout
+	go func() {
+		replyCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		defer cancel()
+		reply, err := s.assist.Reply(replyCtx, conversation)
+		if err != nil {
+			errorChan <- err
+			return
+		}
+		replyChan <- reply
+	}()
+
+	// Wait for reply (critical path)
+	var reply string
+	select {
+	case reply = <-replyChan:
+	case err := <-errorChan:
+		return nil, err
+	}
+
+	// Get title (may still be generating)
+	title := <-titleChan
+
+	// Update conversation with reply and final title
+	conversation.Title = title
 	conversation.Messages = append(conversation.Messages, &model.Message{
 		ID:        primitive.NewObjectID(),
 		Role:      model.RoleAssistant,
@@ -69,7 +102,7 @@ func (s *Server) StartConversation(ctx context.Context, req *pb.StartConversatio
 		UpdatedAt: time.Now(),
 	})
 
-	if err := s.repo.CreateConversation(ctx, conversation); err != nil {
+	if err := s.repo.UpdateConversation(ctx, conversation); err != nil {
 		return nil, err
 	}
 
