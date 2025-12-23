@@ -19,17 +19,16 @@ import (
 )
 
 func main() {
-	mongo := mongox.MustConnect()
-
-	repo := model.New(mongo)
-	assist := assistant.New()
-
-	server := chat.NewServer(repo, assist)
-
-	// Initialize telemetry
+	// Initialize telemetry (metrics + tracing)
+	telemetry.InitTracing()
 	metrics := telemetry.NewMetrics()
 
-	// Configure handler
+	mongo := mongox.MustConnect()
+	repo := model.New(mongo)
+	assist := assistant.New()
+	server := chat.NewServer(repo, assist)
+
+	// Configure handler with telemetry
 	handler := mux.NewRouter()
 	handler.Use(
 		httpx.Logger(),
@@ -41,15 +40,15 @@ func main() {
 		_, _ = fmt.Fprint(w, "Hi, my name is Clippy!")
 	})
 
-	// Add metrics endpoint
+	// Metrics endpoint
 	handler.Handle("/metrics", promhttp.Handler())
 
-	// Wrap Twirp handler with OpenTelemetry tracing
+	// Twirp handler with automatic tracing
 	twirpHandler := pb.NewChatServiceServer(server, twirp.WithServerJSONSkipDefaults(true))
-	handler.PathPrefix("/twirp/").Handler(otelhttp.NewHandler(twirpHandler, "twirp"))
+	handler.PathPrefix("/twirp/").Handler(otelhttp.NewHandler(twirpHandler, "chat-api"))
 
-	// Start the server
-	slog.Info("Starting the server...")
+	// Start server
+	slog.Info("Starting server with metrics and tracing...")
 	if err := http.ListenAndServe(":8080", handler); err != nil {
 		panic(err)
 	}

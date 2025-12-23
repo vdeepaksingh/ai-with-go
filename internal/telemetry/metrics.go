@@ -19,35 +19,24 @@ type Metrics struct {
 }
 
 func NewMetrics() *Metrics {
-	// Create Prometheus exporter
+	// Simple Prometheus exporter setup
 	exporter, err := prometheus.New()
 	if err != nil {
 		slog.Error("Failed to create Prometheus exporter", "error", err)
 		return nil
 	}
 
-	// Create meter provider
+	// Simple meter provider with Prometheus reader
 	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(exporter))
 	otel.SetMeterProvider(provider)
 
-	// Create meter
+	// Focus on specific metrics configuration
 	meter := otel.Meter("chat-service")
 
-	// Create metrics
-	requestCount, _ := meter.Int64Counter(
-		"http_requests_total",
-		metric.WithDescription("Total number of HTTP requests"),
-	)
-
-	requestDuration, _ := meter.Float64Histogram(
-		"http_request_duration_seconds",
-		metric.WithDescription("HTTP request duration in seconds"),
-	)
-
-	errorCount, _ := meter.Int64Counter(
-		"http_errors_total",
-		metric.WithDescription("Total number of HTTP errors"),
-	)
+	// Key metrics: requests, duration, errors
+	requestCount, _ := meter.Int64Counter("http_requests_total")
+	requestDuration, _ := meter.Float64Histogram("http_request_duration_seconds")
+	errorCount, _ := meter.Int64Counter("http_errors_total")
 
 	return &Metrics{
 		requestCount:    requestCount,
