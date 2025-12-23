@@ -64,7 +64,7 @@ func (s *Server) StartConversation(ctx context.Context, req *pb.StartConversatio
 		title, err := s.assist.Title(titleCtx, conversation)
 		if err != nil {
 			slog.ErrorContext(ctx, "Failed to generate conversation title", "error", err)
-			title = "Untitled conversation"
+			title = s.generateFallbackTitle(req.GetMessage())
 		}
 		titleChan <- title
 	}()
@@ -111,6 +111,37 @@ func (s *Server) StartConversation(ctx context.Context, req *pb.StartConversatio
 		Title:          conversation.Title,
 		Reply:          reply,
 	}, nil
+}
+
+// generateFallbackTitle creates a simple title from the user message
+func (s *Server) generateFallbackTitle(message string) string {
+	// Clean and truncate the message
+	title := strings.TrimSpace(message)
+	title = strings.ReplaceAll(title, "\n", " ")
+	
+	// Remove question words and common prefixes
+	prefixes := []string{"what is", "what's", "how do", "how to", "can you", "please", "tell me"}
+	for _, prefix := range prefixes {
+		if strings.HasPrefix(strings.ToLower(title), prefix) {
+			title = strings.TrimSpace(title[len(prefix):])
+			break
+		}
+	}
+	
+	// Remove question marks and extra punctuation
+	title = strings.Trim(title, "?!.,:;")
+	
+	// Limit to 50 characters
+	if len(title) > 50 {
+		title = title[:50] + "..."
+	}
+	
+	// Fallback if title is empty or too short
+	if len(strings.TrimSpace(title)) < 3 {
+		return "New conversation"
+	}
+	
+	return title
 }
 
 func (s *Server) ContinueConversation(ctx context.Context, req *pb.ContinueConversationRequest) (*pb.ContinueConversationResponse, error) {
