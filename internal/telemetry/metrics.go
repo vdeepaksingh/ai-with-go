@@ -1,3 +1,4 @@
+// Package telemetry provides OpenTelemetry metrics and tracing functionality.
 package telemetry
 
 import (
@@ -12,28 +13,30 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 )
 
+// Metrics holds OpenTelemetry metric instruments for HTTP monitoring.
 type Metrics struct {
 	requestCount    metric.Int64Counter
 	requestDuration metric.Float64Histogram
 	errorCount      metric.Int64Counter
 }
 
+// NewMetrics creates and configures OpenTelemetry metrics with Prometheus exporter.
 func NewMetrics() *Metrics {
-	// Simple Prometheus exporter setup
+	// Create Prometheus exporter for metrics collection.
 	exporter, err := prometheus.New()
 	if err != nil {
 		slog.Error("Failed to create Prometheus exporter", "error", err)
 		return nil
 	}
 
-	// Simple meter provider with Prometheus reader
+	// Create meter provider with Prometheus reader.
 	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(exporter))
 	otel.SetMeterProvider(provider)
 
-	// Focus on specific metrics configuration
+	// Create meter for chat service metrics.
 	meter := otel.Meter("chat-service")
 
-	// Key metrics: requests, duration, errors
+	// Create core HTTP metrics counters and histograms.
 	requestCount, _ := meter.Int64Counter("http_requests_total")
 	requestDuration, _ := meter.Float64Histogram("http_request_duration_seconds")
 	errorCount, _ := meter.Int64Counter("http_errors_total")
@@ -45,6 +48,7 @@ func NewMetrics() *Metrics {
 	}
 }
 
+// RecordRequest records HTTP request metrics including count, duration, and errors.
 func (m *Metrics) RecordRequest(method, path string, statusCode int, duration float64) {
 	if m == nil {
 		return
@@ -57,13 +61,13 @@ func (m *Metrics) RecordRequest(method, path string, statusCode int, duration fl
 		attribute.String("status", fmt.Sprintf("%d", statusCode)),
 	}
 
-	// Record request count
+	// Record request count.
 	m.requestCount.Add(ctx, 1, metric.WithAttributes(attrs...))
 
-	// Record request duration
+	// Record request duration.
 	m.requestDuration.Record(ctx, duration, metric.WithAttributes(attrs...))
 
-	// Record errors (4xx and 5xx status codes)
+	// Record errors (4xx and 5xx status codes).
 	if statusCode >= 400 {
 		m.errorCount.Add(ctx, 1, metric.WithAttributes(attrs...))
 	}

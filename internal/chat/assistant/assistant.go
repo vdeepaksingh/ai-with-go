@@ -14,6 +14,9 @@ import (
 	"github.com/openai/openai-go/v2"
 )
 
+// maxToolCallIterations defines the maximum number of tool call iterations to prevent infinite loops.
+const maxToolCallIterations = 15
+
 type Assistant struct {
 	cli openai.Client
 }
@@ -33,7 +36,7 @@ func (a *Assistant) Title(ctx context.Context, conv *model.Conversation) (string
 		openai.SystemMessage("Generate a concise, descriptive title (2-6 words) that summarizes the main topic of the user's question. Do not answer the question, just create a brief topic summary. Examples: 'Weather in Barcelona', 'Today's Date', 'Barcelona Holidays'."),
 	}
 
-	// Add only the first user message for title generation
+	// Add only the first user message for title generation.
 	for _, m := range conv.Messages {
 		if m.Role == model.RoleUser {
 			msgs = append(msgs, openai.UserMessage(m.Content))
@@ -85,7 +88,7 @@ func (a *Assistant) Reply(ctx context.Context, conv *model.Conversation) (string
 		}
 	}
 
-	for i := 0; i < 15; i++ {
+	for i := 0; i < maxToolCallIterations; i++ {
 		resp, err := a.cli.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
 			Model:    openai.ChatModelGPT4_1,
 			Messages: msgs,

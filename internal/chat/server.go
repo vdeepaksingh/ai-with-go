@@ -57,17 +57,17 @@ func (s *Server) StartConversation(ctx context.Context, req *pb.StartConversatio
 		return nil, twirp.RequiredArgumentError("message")
 	}
 
-	// Save conversation early with placeholder title
+	// Save conversation early with placeholder title.
 	if err := s.repo.CreateConversation(ctx, conversation); err != nil {
 		return nil, err
 	}
 
-	// Run title and reply generation in parallel with timeouts
+	// Run title and reply generation in parallel with timeouts.
 	titleChan := make(chan string, 1)
 	replyChan := make(chan string, 1)
 	errorChan := make(chan error, 2)
 
-	// Generate title concurrently with timeout
+	// Generate title concurrently with timeout.
 	go func() {
 		titleCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 		defer cancel()
@@ -79,7 +79,7 @@ func (s *Server) StartConversation(ctx context.Context, req *pb.StartConversatio
 		titleChan <- title
 	}()
 
-	// Generate reply concurrently with timeout
+	// Generate reply concurrently with timeout.
 	go func() {
 		replyCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		defer cancel()
@@ -91,7 +91,7 @@ func (s *Server) StartConversation(ctx context.Context, req *pb.StartConversatio
 		replyChan <- reply
 	}()
 
-	// Wait for reply (critical path)
+	// Wait for reply (critical path).
 	var reply string
 	select {
 	case reply = <-replyChan:
@@ -100,10 +100,10 @@ func (s *Server) StartConversation(ctx context.Context, req *pb.StartConversatio
 		return nil, err
 	}
 
-	// Get title (may still be generating)
+	// Get title (may still be generating).
 	title := <-titleChan
 
-	// Update conversation with reply and final title
+	// Update conversation with reply and final title.
 	conversation.Title = title
 	conversation.Messages = append(conversation.Messages, &model.Message{
 		ID:        primitive.NewObjectID(),
@@ -130,13 +130,13 @@ func (s *Server) StartConversation(ctx context.Context, req *pb.StartConversatio
 	}, nil
 }
 
-// generateFallbackTitle creates a simple title from the user message
+// generateFallbackTitle creates a simple title from the user message.
 func (s *Server) generateFallbackTitle(message string) string {
-	// Clean and truncate the message
+	// Clean and truncate the message.
 	title := strings.TrimSpace(message)
 	title = strings.ReplaceAll(title, "\n", " ")
 	
-	// Remove question words and common prefixes
+	// Remove question words and common prefixes.
 	prefixes := []string{"what is", "what's", "how do", "how to", "can you", "please", "tell me"}
 	for _, prefix := range prefixes {
 		if strings.HasPrefix(strings.ToLower(title), prefix) {
@@ -145,15 +145,15 @@ func (s *Server) generateFallbackTitle(message string) string {
 		}
 	}
 	
-	// Remove question marks and extra punctuation
+	// Remove question marks and extra punctuation.
 	title = strings.Trim(title, "?!.,:;")
 	
-	// Limit to 50 characters
+	// Limit to 50 characters.
 	if len(title) > 50 {
 		title = title[:50] + "..."
 	}
 	
-	// Fallback if title is empty or too short
+	// Fallback if title is empty or too short.
 	if len(strings.TrimSpace(title)) < 3 {
 		return "New conversation"
 	}
@@ -212,7 +212,7 @@ func (s *Server) ListConversations(ctx context.Context, req *pb.ListConversation
 
 	resp := &pb.ListConversationsResponse{}
 	for _, conv := range conversations {
-		conv.Messages = nil // Clear messages to avoid sending large data
+		conv.Messages = nil // Clear messages to avoid sending large data.
 		resp.Conversations = append(resp.Conversations, conv.Proto())
 	}
 
